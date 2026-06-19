@@ -1,0 +1,705 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Ticket Bot Dashboard</title>
+<style>
+  :root {
+    --bg: #0f1117;
+    --surface: #1a1d27;
+    --surface2: #22263a;
+    --border: #2e3352;
+    --accent: #5865f2;
+    --accent2: #4752c4;
+    --green: #57f287;
+    --red: #ed4245;
+    --yellow: #fee75c;
+    --text: #e3e5e8;
+    --muted: #8b8fa8;
+    --radius: 12px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Segoe UI', system-ui, sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
+
+  /* Layout */
+  .layout { display: flex; min-height: 100vh; }
+  .sidebar {
+    width: 240px; background: var(--surface); border-right: 1px solid var(--border);
+    padding: 20px 0; display: flex; flex-direction: column; position: sticky; top: 0; height: 100vh;
+  }
+  .sidebar-logo { padding: 0 20px 24px; border-bottom: 1px solid var(--border); }
+  .sidebar-logo h2 { font-size: 18px; color: var(--accent); }
+  .sidebar-logo p { font-size: 12px; color: var(--muted); margin-top: 2px; }
+  .sidebar-nav { padding: 16px 12px; flex: 1; }
+  .nav-item {
+    display: flex; align-items: center; gap: 10px; padding: 10px 12px;
+    border-radius: 8px; cursor: pointer; color: var(--muted); font-size: 14px;
+    transition: all .15s; margin-bottom: 2px;
+  }
+  .nav-item:hover { background: var(--surface2); color: var(--text); }
+  .nav-item.active { background: var(--accent); color: #fff; }
+  .nav-icon { font-size: 16px; width: 20px; text-align: center; }
+  .sidebar-footer { padding: 16px 20px; border-top: 1px solid var(--border); }
+  .bot-status { display: flex; align-items: center; gap: 8px; }
+  .status-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--green); }
+  .status-text { font-size: 12px; color: var(--muted); }
+
+  .main { flex: 1; overflow-y: auto; }
+  .topbar {
+    background: var(--surface); border-bottom: 1px solid var(--border);
+    padding: 16px 28px; display: flex; align-items: center; justify-content: space-between; position: sticky; top: 0; z-index: 10;
+  }
+  .topbar h1 { font-size: 20px; font-weight: 600; }
+  .content { padding: 28px; max-width: 900px; }
+
+  /* Auth screen */
+  #auth-screen {
+    position: fixed; inset: 0; background: var(--bg);
+    display: flex; align-items: center; justify-content: center; z-index: 100;
+  }
+  .auth-box {
+    background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+    padding: 40px; width: 360px; text-align: center;
+  }
+  .auth-box h2 { font-size: 22px; margin-bottom: 8px; }
+  .auth-box p { color: var(--muted); font-size: 14px; margin-bottom: 24px; }
+
+  /* Cards & Sections */
+  .page { display: none; }
+  .page.active { display: block; }
+  .card {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: var(--radius); padding: 24px; margin-bottom: 20px;
+  }
+  .card-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; }
+  .card-title { font-size: 16px; font-weight: 600; display: flex; align-items: center; gap: 8px; }
+  .card-subtitle { font-size: 13px; color: var(--muted); margin-top: 3px; }
+
+  /* Stats grid */
+  .stats-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 16px; margin-bottom: 24px; }
+  .stat-card {
+    background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+    padding: 20px; text-align: center;
+  }
+  .stat-value { font-size: 28px; font-weight: 700; color: var(--accent); }
+  .stat-label { font-size: 13px; color: var(--muted); margin-top: 4px; }
+
+  /* Form elements */
+  .form-group { margin-bottom: 18px; }
+  .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  label { display: block; font-size: 13px; color: var(--muted); margin-bottom: 6px; }
+  label span.req { color: var(--red); }
+  input[type=text], input[type=number], select, textarea {
+    width: 100%; background: var(--surface2); border: 1px solid var(--border);
+    border-radius: 8px; padding: 10px 14px; color: var(--text); font-size: 14px;
+    outline: none; transition: border-color .15s;
+  }
+  input[type=text]:focus, select:focus, textarea:focus { border-color: var(--accent); }
+  select option { background: var(--surface2); }
+  textarea { resize: vertical; min-height: 80px; font-family: inherit; }
+
+  /* Toggle */
+  .toggle-row { display: flex; align-items: center; justify-content: space-between; padding: 12px 0; border-bottom: 1px solid var(--border); }
+  .toggle-row:last-child { border-bottom: none; }
+  .toggle-info h4 { font-size: 14px; }
+  .toggle-info p { font-size: 12px; color: var(--muted); margin-top: 2px; }
+  .toggle { position: relative; width: 44px; height: 24px; }
+  .toggle input { opacity: 0; width: 0; height: 0; }
+  .toggle-slider {
+    position: absolute; cursor: pointer; inset: 0; background: var(--border);
+    border-radius: 24px; transition: .2s;
+  }
+  .toggle-slider:before {
+    content: ''; position: absolute; height: 18px; width: 18px; left: 3px; bottom: 3px;
+    background: white; border-radius: 50%; transition: .2s;
+  }
+  input:checked + .toggle-slider { background: var(--accent); }
+  input:checked + .toggle-slider:before { transform: translateX(20px); }
+
+  /* Buttons */
+  .btn {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 10px 18px; border-radius: 8px; font-size: 14px; font-weight: 500;
+    cursor: pointer; border: none; transition: all .15s;
+  }
+  .btn-primary { background: var(--accent); color: #fff; }
+  .btn-primary:hover { background: var(--accent2); }
+  .btn-success { background: var(--green); color: #000; }
+  .btn-danger { background: var(--red); color: #fff; }
+  .btn-ghost { background: transparent; color: var(--muted); border: 1px solid var(--border); }
+  .btn-ghost:hover { background: var(--surface2); color: var(--text); }
+  .btn-sm { padding: 6px 12px; font-size: 13px; }
+
+  /* Ticket panels */
+  .ticket-panel-list { display: flex; flex-direction: column; gap: 12px; }
+  .ticket-type-card {
+    background: var(--surface2); border: 1px solid var(--border);
+    border-radius: 10px; padding: 16px;
+  }
+  .ticket-type-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+  .ticket-type-name { font-weight: 600; display: flex; align-items: center; gap: 8px; }
+  .color-dot { width: 12px; height: 12px; border-radius: 50%; display: inline-block; }
+
+  /* Badge */
+  .badge {
+    display: inline-block; padding: 2px 8px; border-radius: 20px;
+    font-size: 11px; font-weight: 600; text-transform: uppercase;
+  }
+  .badge-blue { background: rgba(88,101,242,.2); color: var(--accent); }
+  .badge-green { background: rgba(87,242,135,.2); color: var(--green); }
+  .badge-gray { background: rgba(139,143,168,.2); color: var(--muted); }
+
+  /* Divider */
+  .divider { height: 1px; background: var(--border); margin: 20px 0; }
+
+  /* Toasts */
+  #toast-container { position: fixed; bottom: 24px; right: 24px; z-index: 999; display: flex; flex-direction: column; gap: 8px; }
+  .toast {
+    background: var(--surface); border: 1px solid var(--border); border-radius: 8px;
+    padding: 12px 16px; font-size: 14px; min-width: 220px;
+    animation: slideIn .2s ease; display: flex; align-items: center; gap: 8px;
+  }
+  @keyframes slideIn { from { transform: translateX(40px); opacity: 0; } }
+  .toast.success { border-left: 3px solid var(--green); }
+  .toast.error { border-left: 3px solid var(--red); }
+
+  /* Modal */
+  .modal-overlay {
+    position: fixed; inset: 0; background: rgba(0,0,0,.7); z-index: 200;
+    display: none; align-items: center; justify-content: center;
+  }
+  .modal-overlay.open { display: flex; }
+  .modal {
+    background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+    padding: 28px; width: 500px; max-height: 80vh; overflow-y: auto;
+  }
+  .modal-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; }
+  .modal-header h3 { font-size: 16px; font-weight: 600; }
+  .modal-close { background: none; border: none; color: var(--muted); cursor: pointer; font-size: 20px; }
+</style>
+</head>
+<body>
+
+<!-- Auth -->
+<div id="auth-screen">
+  <div class="auth-box">
+    <div style="font-size:40px;margin-bottom:12px">🎫</div>
+    <h2>Ticket Bot Dashboard</h2>
+    <p>Enter your dashboard secret to continue</p>
+    <div class="form-group" style="margin-bottom:16px">
+      <input type="text" id="secret-input" placeholder="Dashboard secret key" style="text-align:center"/>
+    </div>
+    <button class="btn btn-primary" style="width:100%" onclick="login()">Login →</button>
+  </div>
+</div>
+
+<!-- Layout -->
+<div class="layout" id="app" style="display:none">
+  <aside class="sidebar">
+    <div class="sidebar-logo">
+      <h2>🎫 TicketBot</h2>
+      <p id="guild-name">Loading…</p>
+    </div>
+    <nav class="sidebar-nav">
+      <div class="nav-item active" onclick="showPage('overview')" data-page="overview">
+        <span class="nav-icon">📊</span> Overview
+      </div>
+      <div class="nav-item" onclick="showPage('settings')" data-page="settings">
+        <span class="nav-icon">⚙️</span> Basic Settings
+      </div>
+      <div class="nav-item" onclick="showPage('tickets')" data-page="tickets">
+        <span class="nav-icon">🎫</span> Ticket Panels
+      </div>
+      <div class="nav-item" onclick="showPage('channels')" data-page="channels">
+        <span class="nav-icon">📋</span> Channels & Roles
+      </div>
+    </nav>
+    <div class="sidebar-footer">
+      <div class="bot-status">
+        <div class="status-dot"></div>
+        <div>
+          <div class="status-text" id="bot-tag">Online</div>
+          <div class="status-text" id="uptime-text"></div>
+        </div>
+      </div>
+    </div>
+  </aside>
+
+  <main class="main">
+    <div class="topbar">
+      <h1 id="page-title">Overview</h1>
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-primary btn-sm" onclick="saveConfig()">💾 Save All Changes</button>
+      </div>
+    </div>
+    <div class="content">
+
+      <!-- OVERVIEW PAGE -->
+      <div class="page active" id="page-overview">
+        <div class="stats-grid">
+          <div class="stat-card">
+            <div class="stat-value" id="stat-tickets">—</div>
+            <div class="stat-label">Open Tickets</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-value" id="stat-members">—</div>
+            <div class="stat-label">Server Members</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-value" id="stat-uptime">—</div>
+            <div class="stat-label">Bot Uptime</div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-header">
+            <div>
+              <div class="card-title">🤖 Bot Info</div>
+            </div>
+          </div>
+          <div id="bot-info-content" style="color:var(--muted);font-size:14px">Loading…</div>
+        </div>
+        <div class="card">
+          <div class="card-header">
+            <div class="card-title">🚀 Quick Start</div>
+          </div>
+          <ol style="padding-left:20px;line-height:2;font-size:14px;color:var(--muted)">
+            <li>Fill in your IDs in <strong style="color:var(--text)">Basic Settings</strong> and <strong style="color:var(--text)">Channels & Roles</strong></li>
+            <li>Customize your ticket types in <strong style="color:var(--text)">Ticket Panels</strong></li>
+            <li>Click <strong style="color:var(--text)">Save All Changes</strong></li>
+            <li>Run <code style="background:var(--surface2);padding:2px 6px;border-radius:4px">node deploy-commands.js</code> once</li>
+            <li>Use <code style="background:var(--surface2);padding:2px 6px;border-radius:4px">/setup</code> in Discord to post the ticket menu</li>
+          </ol>
+        </div>
+      </div>
+
+      <!-- SETTINGS PAGE -->
+      <div class="page" id="page-settings">
+        <div class="card">
+          <div class="card-header">
+            <div>
+              <div class="card-title">⚙️ Basic Settings</div>
+              <div class="card-subtitle">Core bot configuration</div>
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label>Client ID <span class="req">*</span></label>
+              <input type="text" id="cfg-clientId" placeholder="Your bot's application ID"/>
+            </div>
+            <div class="form-group">
+              <label>Guild / Server ID <span class="req">*</span></label>
+              <input type="text" id="cfg-guildId" placeholder="Your Discord server ID"/>
+            </div>
+          </div>
+          <div class="form-group">
+            <label>Dashboard Secret</label>
+            <input type="text" id="cfg-dashboardSecret" placeholder="Secret key for this dashboard"/>
+          </div>
+          <div class="form-group">
+            <label>Dashboard Port</label>
+            <input type="number" id="cfg-dashboardPort" placeholder="3000"/>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header">
+            <div class="card-title">🖼️ Panel Appearance</div>
+          </div>
+          <div class="form-group">
+            <label>Banner Image URL</label>
+            <input type="text" id="cfg-imageUrl" placeholder="https://…"/>
+          </div>
+          <div class="form-group">
+            <label>Panel Title</label>
+            <input type="text" id="panel-title" placeholder="e.g. Diabolical"/>
+          </div>
+          <div class="form-group">
+            <label>Panel Description</label>
+            <textarea id="panel-description" placeholder="Have a problem? Open a ticket"></textarea>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label>Panel Color (hex)</label>
+              <input type="text" id="panel-color" placeholder="5865F2"/>
+            </div>
+            <div class="form-group">
+              <label>Footer Text</label>
+              <input type="text" id="panel-footer" placeholder="Your server name"/>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header">
+            <div class="card-title">🔒 Close Behaviour</div>
+          </div>
+          <div class="toggle-row">
+            <div class="toggle-info">
+              <h4>Delete on Close</h4>
+              <p>Delete ticket channel when closed (vs. archiving to closed category)</p>
+            </div>
+            <label class="toggle">
+              <input type="checkbox" id="cfg-deleteOnClose" checked/>
+              <span class="toggle-slider"></span>
+            </label>
+          </div>
+          <div class="form-group" style="margin-top:16px">
+            <label>Closed Category ID (if archiving)</label>
+            <input type="text" id="cfg-closedCategoryId" placeholder="Leave blank to use delete"/>
+          </div>
+        </div>
+      </div>
+
+      <!-- TICKET PANELS PAGE -->
+      <div class="page" id="page-tickets">
+        <div class="card">
+          <div class="card-header">
+            <div>
+              <div class="card-title">🎫 Ticket Types</div>
+              <div class="card-subtitle">Configure each ticket button on your panel</div>
+            </div>
+            <button class="btn btn-primary btn-sm" onclick="addTicketType()">+ Add Type</button>
+          </div>
+          <div id="ticket-types-list" class="ticket-panel-list"></div>
+        </div>
+      </div>
+
+      <!-- CHANNELS & ROLES PAGE -->
+      <div class="page" id="page-channels">
+        <div class="card">
+          <div class="card-header">
+            <div class="card-title">📋 Channels & Categories</div>
+          </div>
+          <div class="form-group">
+            <label>🗂️ Ticket Category ID <span class="req">*</span></label>
+            <input type="text" id="cfg-ticketCategoryId" placeholder="Category where tickets are created"/>
+          </div>
+          <div class="form-group">
+            <label>📄 Log Channel ID <span class="req">*</span></label>
+            <input type="text" id="cfg-logChannelId" placeholder="Channel for transcripts"/>
+          </div>
+          <div class="form-group">
+            <label>⭐ Ratings Channel ID <span class="req">*</span></label>
+            <input type="text" id="cfg-evalChannelId" placeholder="Channel for ratings after ticket close"/>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-header">
+            <div class="card-title">👥 Roles</div>
+          </div>
+          <div class="form-group">
+            <label>🛡️ Support Role ID <span class="req">*</span></label>
+            <input type="text" id="cfg-supportRoleId" placeholder="Role that can see & manage all tickets"/>
+          </div>
+        </div>
+      </div>
+
+    </div><!-- /content -->
+  </main>
+</div><!-- /layout -->
+
+<!-- Ticket Type Modal -->
+<div class="modal-overlay" id="ticket-modal">
+  <div class="modal">
+    <div class="modal-header">
+      <h3 id="modal-title">Edit Ticket Type</h3>
+      <button class="modal-close" onclick="closeModal()">✕</button>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>Label (button text)</label>
+        <input type="text" id="mt-label" placeholder="Issu"/>
+      </div>
+      <div class="form-group">
+        <label>Emoji</label>
+        <input type="text" id="mt-emoji" placeholder="🔧"/>
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>Channel Prefix</label>
+        <input type="text" id="mt-prefix" placeholder="-issu-"/>
+      </div>
+      <div class="form-group">
+        <label>Button Style</label>
+        <select id="mt-style">
+          <option value="Primary">Primary (Blue)</option>
+          <option value="Success">Success (Green)</option>
+          <option value="Secondary">Secondary (Gray)</option>
+          <option value="Danger">Danger (Red)</option>
+        </select>
+      </div>
+    </div>
+    <div class="form-group">
+      <label>Embed Color (hex)</label>
+      <input type="text" id="mt-color" placeholder="5865F2"/>
+    </div>
+    <div class="form-group">
+      <label>Welcome Message</label>
+      <textarea id="mt-welcome" placeholder="Describe your issue so we can help you"></textarea>
+    </div>
+    <div class="toggle-row">
+      <div class="toggle-info">
+        <h4>Mention Support on Open</h4>
+        <p>Ping the support role when this ticket is created</p>
+      </div>
+      <label class="toggle">
+        <input type="checkbox" id="mt-mention" checked/>
+        <span class="toggle-slider"></span>
+      </label>
+    </div>
+    <div style="margin-top:20px;display:flex;gap:10px;justify-content:flex-end">
+      <button class="btn btn-ghost" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-primary" onclick="saveTicketType()">Save</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast-container"></div>
+
+<script>
+let SECRET = '';
+let CONFIG = {};
+let editingIndex = -1;
+
+// ── Auth ─────────────────────────────────────────────────────────────────────
+async function login() {
+  SECRET = document.getElementById('secret-input').value.trim();
+  if (!SECRET) return toast('Enter your secret key', 'error');
+  const ok = await loadConfig();
+  if (ok) {
+    document.getElementById('auth-screen').style.display = 'none';
+    document.getElementById('app').style.display = 'flex';
+    loadStats();
+  }
+}
+document.getElementById('secret-input').addEventListener('keydown', e => { if (e.key === 'Enter') login(); });
+
+// ── API helpers ───────────────────────────────────────────────────────────────
+async function api(path, method = 'GET', body = null) {
+  const opts = { method, headers: { 'Content-Type': 'application/json', 'x-dashboard-secret': SECRET } };
+  if (body) opts.body = JSON.stringify(body);
+  const r = await fetch(path, opts);
+  if (!r.ok) throw new Error(await r.text());
+  return r.json();
+}
+
+async function loadConfig() {
+  try {
+    CONFIG = await api('/api/config');
+    populateForm();
+    return true;
+  } catch (e) {
+    toast('Invalid secret or server error', 'error');
+    return false;
+  }
+}
+
+async function loadStats() {
+  try {
+    const s = await api('/api/stats');
+    document.getElementById('stat-tickets').textContent = s.openTickets;
+    document.getElementById('stat-members').textContent = s.memberCount;
+    document.getElementById('stat-uptime').textContent = formatUptime(s.uptime);
+    document.getElementById('bot-tag').textContent = s.botTag;
+    document.getElementById('guild-name').textContent = s.guildName;
+    document.getElementById('uptime-text').textContent = 'Uptime: ' + formatUptime(s.uptime);
+    document.getElementById('bot-info-content').innerHTML = `
+      <p><strong>Bot:</strong> ${s.botTag}</p>
+      <p><strong>Server:</strong> ${s.guildName}</p>
+      <p><strong>Members:</strong> ${s.memberCount}</p>
+      <p><strong>Open Tickets:</strong> ${s.openTickets}</p>
+      <p><strong>Uptime:</strong> ${formatUptime(s.uptime)}</p>
+    `;
+  } catch (e) { /* offline */ }
+}
+
+function formatUptime(s) {
+  const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60);
+  return `${h}h ${m}m`;
+}
+
+// ── Form population ──────────────────────────────────────────────────────────
+function populateForm() {
+  const set = (id, val) => { const el = document.getElementById(id); if (el) el.value = val ?? ''; };
+  const check = (id, val) => { const el = document.getElementById(id); if (el) el.checked = !!val; };
+
+  set('cfg-clientId', CONFIG.clientId);
+  set('cfg-guildId', CONFIG.guildId);
+  set('cfg-dashboardSecret', CONFIG.dashboardSecret);
+  set('cfg-dashboardPort', CONFIG.dashboardPort || 3000);
+  set('cfg-imageUrl', CONFIG.imageUrl);
+  set('cfg-ticketCategoryId', CONFIG.ticketCategoryId);
+  set('cfg-closedCategoryId', CONFIG.closedCategoryId || '');
+  set('cfg-logChannelId', CONFIG.logChannelId);
+  set('cfg-evalChannelId', CONFIG.evalChannelId);
+  set('cfg-supportRoleId', CONFIG.supportRoleId);
+  check('cfg-deleteOnClose', CONFIG.deleteOnClose !== false);
+
+  const panel = CONFIG.panels?.[0] || {};
+  set('panel-title', panel.title);
+  set('panel-description', panel.description);
+  set('panel-color', panel.color);
+  set('panel-footer', panel.footerText);
+
+  renderTicketTypes(panel.tickets || []);
+}
+
+function collectForm() {
+  const g = id => document.getElementById(id)?.value?.trim() || '';
+  const b = id => document.getElementById(id)?.checked;
+  const panel = CONFIG.panels?.[0] || {};
+  return {
+    ...CONFIG,
+    clientId: g('cfg-clientId'),
+    guildId: g('cfg-guildId'),
+    dashboardSecret: g('cfg-dashboardSecret'),
+    dashboardPort: parseInt(g('cfg-dashboardPort')) || 3000,
+    imageUrl: g('cfg-imageUrl'),
+    ticketCategoryId: g('cfg-ticketCategoryId'),
+    closedCategoryId: g('cfg-closedCategoryId') || null,
+    logChannelId: g('cfg-logChannelId'),
+    evalChannelId: g('cfg-evalChannelId'),
+    supportRoleId: g('cfg-supportRoleId'),
+    deleteOnClose: b('cfg-deleteOnClose'),
+    panels: [{
+      ...panel,
+      title: g('panel-title'),
+      description: g('panel-description'),
+      color: g('panel-color'),
+      footerText: g('panel-footer'),
+      tickets: CONFIG.panels?.[0]?.tickets || [],
+    }],
+  };
+}
+
+async function saveConfig() {
+  try {
+    const data = collectForm();
+    await api('/api/config', 'POST', data);
+    CONFIG = { ...CONFIG, ...data };
+    toast('✅ Config saved! Restart bot to apply.', 'success');
+  } catch (e) {
+    toast('Error saving: ' + e.message, 'error');
+  }
+}
+
+// ── Ticket type management ────────────────────────────────────────────────────
+function renderTicketTypes(tickets) {
+  const list = document.getElementById('ticket-types-list');
+  if (!tickets.length) {
+    list.innerHTML = '<p style="color:var(--muted);text-align:center;padding:20px">No ticket types yet. Add one above.</p>';
+    return;
+  }
+  const styleColors = { Primary: '#5865f2', Success: '#57f287', Secondary: '#8b8fa8', Danger: '#ed4245' };
+  list.innerHTML = tickets.map((t, i) => `
+    <div class="ticket-type-card">
+      <div class="ticket-type-header">
+        <div class="ticket-type-name">
+          <span style="font-size:18px">${t.emoji || '🎫'}</span>
+          ${t.label}
+          <span class="badge" style="background:rgba(255,255,255,.06);color:${styleColors[t.style] || '#fff'}">${t.style}</span>
+        </div>
+        <div style="display:flex;gap:6px">
+          <button class="btn btn-ghost btn-sm" onclick="editTicketType(${i})">✏️ Edit</button>
+          <button class="btn btn-danger btn-sm" onclick="deleteTicketType(${i})">🗑️</button>
+        </div>
+      </div>
+      <div style="font-size:13px;color:var(--muted);display:flex;gap:16px;flex-wrap:wrap">
+        <span>📁 Prefix: <strong style="color:var(--text)">${t.prefix || '-' + t.id + '-'}</strong></span>
+        <span>💬 ${(t.welcomeMessage || '').substring(0, 50)}${(t.welcomeMessage?.length || 0) > 50 ? '…' : ''}</span>
+        <span>${t.mentionOnOpen ? '🔔 Mentions support' : '🔕 No mention'}</span>
+      </div>
+    </div>
+  `).join('');
+}
+
+function addTicketType() {
+  editingIndex = -1;
+  document.getElementById('modal-title').textContent = 'Add Ticket Type';
+  document.getElementById('mt-label').value = '';
+  document.getElementById('mt-emoji').value = '';
+  document.getElementById('mt-prefix').value = '';
+  document.getElementById('mt-style').value = 'Primary';
+  document.getElementById('mt-color').value = '5865F2';
+  document.getElementById('mt-welcome').value = '';
+  document.getElementById('mt-mention').checked = true;
+  document.getElementById('ticket-modal').classList.add('open');
+}
+
+function editTicketType(i) {
+  editingIndex = i;
+  const t = CONFIG.panels[0].tickets[i];
+  document.getElementById('modal-title').textContent = 'Edit Ticket Type';
+  document.getElementById('mt-label').value = t.label;
+  document.getElementById('mt-emoji').value = t.emoji || '';
+  document.getElementById('mt-prefix').value = t.prefix || '';
+  document.getElementById('mt-style').value = t.style || 'Primary';
+  document.getElementById('mt-color').value = t.color || '5865F2';
+  document.getElementById('mt-welcome').value = t.welcomeMessage || '';
+  document.getElementById('mt-mention').checked = !!t.mentionOnOpen;
+  document.getElementById('ticket-modal').classList.add('open');
+}
+
+function saveTicketType() {
+  const label = document.getElementById('mt-label').value.trim();
+  if (!label) return toast('Label is required', 'error');
+  const id = label.toLowerCase().replace(/[^a-z0-9]/g, '');
+  const ticket = {
+    id,
+    label,
+    emoji: document.getElementById('mt-emoji').value.trim(),
+    prefix: document.getElementById('mt-prefix').value.trim() || `-${id}-`,
+    style: document.getElementById('mt-style').value,
+    color: document.getElementById('mt-color').value.replace('#', ''),
+    suffix: 'username',
+    welcomeMessage: document.getElementById('mt-welcome').value.trim(),
+    mentionOnOpen: document.getElementById('mt-mention').checked,
+    mentionRoles: [],
+    questions: [],
+  };
+  if (!CONFIG.panels) CONFIG.panels = [{ id: 'main', tickets: [] }];
+  if (!CONFIG.panels[0].tickets) CONFIG.panels[0].tickets = [];
+  if (editingIndex >= 0) {
+    CONFIG.panels[0].tickets[editingIndex] = ticket;
+  } else {
+    CONFIG.panels[0].tickets.push(ticket);
+  }
+  renderTicketTypes(CONFIG.panels[0].tickets);
+  closeModal();
+  toast('Ticket type saved — remember to Save All Changes!', 'success');
+}
+
+function deleteTicketType(i) {
+  if (!confirm('Delete this ticket type?')) return;
+  CONFIG.panels[0].tickets.splice(i, 1);
+  renderTicketTypes(CONFIG.panels[0].tickets);
+  toast('Deleted', 'success');
+}
+
+function closeModal() {
+  document.getElementById('ticket-modal').classList.remove('open');
+}
+
+// ── Navigation ────────────────────────────────────────────────────────────────
+const PAGE_TITLES = { overview: 'Overview', settings: 'Basic Settings', tickets: 'Ticket Panels', channels: 'Channels & Roles' };
+function showPage(id) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  document.getElementById('page-' + id).classList.add('active');
+  document.querySelector(`[data-page="${id}"]`).classList.add('active');
+  document.getElementById('page-title').textContent = PAGE_TITLES[id] || id;
+}
+
+// ── Toast ─────────────────────────────────────────────────────────────────────
+function toast(msg, type = 'success') {
+  const el = document.createElement('div');
+  el.className = `toast ${type}`;
+  el.textContent = msg;
+  document.getElementById('toast-container').appendChild(el);
+  setTimeout(() => el.remove(), 3500);
+}
+</script>
+</body>
+</html>
